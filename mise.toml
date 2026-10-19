@@ -1,0 +1,27 @@
+[tools]
+node = "22.23.3"
+pnpm = "10.34.6"
+
+[tasks.install]
+description = "Install the package's dependencies"
+run = "pnpm install --frozen-lockfile"
+
+[tasks.build]
+description = "Compile the CLI to dist/"
+depends = ["install"]
+run = "pnpm exec tsc -p tsconfig.build.json"
+
+[tasks.test]
+description = "Run the unit tests"
+depends = ["install"]
+run = "pnpm exec vitest run"
+
+[tasks.lint]
+description = "Check types, lint and formatting"
+depends = ["install"]
+run = ["pnpm exec tsc --noEmit", "pnpm exec tsc --noEmit -p worker", "pnpm exec eslint .", "pnpm exec prettier --check ."]
+
+[tasks.fmt]
+description = "Format the code"
+depends = ["install"]
+run = "pnpm exec prettier --write ."

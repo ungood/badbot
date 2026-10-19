@@ -1,0 +1,39 @@
+{
+  "name": "badbot",
+  "version": "0.0.0-development",
+  "description": "Wakes the Orca agent that owns a pull request when something happens to it",
+  "license": "MIT",
+  "author": "Jason Walker",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "badbot": "./dist/src/cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@commander-js/extra-typings": "^15.0.0",
+    "@octokit/auth-app": "^8.3.1",
+    "@octokit/rest": "^22.0.1",
+    "commander": "^15.0.0",
+    "smol-toml": "^1.9.1",
+    "wrangler": "^4.151.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261018.1",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
+  }
+}

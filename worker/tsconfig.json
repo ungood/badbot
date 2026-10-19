@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": [
+    ".",
+    "../src/inbox/message.ts",
+    "../src/github/events.ts",
+    "../src/github/signature.ts"
+  ]
+}
