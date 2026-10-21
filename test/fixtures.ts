@@ -5,6 +5,7 @@ export function workplace(overrides: Partial<Workplace> = {}): Workplace {
   const wp: Workplace = {
     path: "/work",
     agent: "claude",
+    agentCommand: "claude",
     allow: ["ungood"],
     routes: { ...DEFAULT_ROUTES },
     repos: [],

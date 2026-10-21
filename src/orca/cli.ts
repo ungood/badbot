@@ -1,4 +1,6 @@
-// A thin wrapper over the `orca` CLI's JSON output.
+// A thin wrapper over the `orca` CLI's JSON output. badbot only uses
+// worktrees and terminals: it hands a PR to the agent in its worktree, and
+// doesn't supervise it.
 
 import { execFileAsync } from "../exec.js";
 
@@ -27,41 +29,6 @@ export interface Worktree {
   isArchived: boolean;
 }
 
-export interface WorkerStart {
-  spec: string;
-  worktreeId: string;
-  // Reuse this agent terminal, keeping the agent's session, instead of starting a new agent.
-  terminal?: string;
-  agent?: string;
-  title?: string;
-}
-
-export interface WorkerInfo {
-  dispatchId: string;
-  status: string;
-  settled: boolean;
-  terminal?: string;
-  worktreeId?: string;
-}
-
-export interface RunMessage {
-  id: string;
-  type: string;
-  subject: string;
-  body: string;
-  payload: Json;
-}
-
-const SETTLED = new Set([
-  "completed",
-  "failed",
-  "cancelled",
-  "canceled",
-  "abandoned",
-  "stopped",
-  "released",
-]);
-
 export class Orca {
   constructor(private readonly bin = "orca") {}
 
@@ -81,31 +48,15 @@ export class Orca {
       result?: Json;
       error?: { code: string; message: string };
     };
-    if (!reply.ok)
+    if (!reply.ok) {
       throw new OrcaError(reply.error?.code ?? "unknown", reply.error?.message ?? stdout);
+    }
     return reply.result ?? {};
   }
 
   async terminals(): Promise<Terminal[]> {
     const result = await this.call(["terminal", "list"]);
     return (result.terminals as Terminal[]) ?? [];
-  }
-
-  async createTerminal(worktree: string, title: string, command: string): Promise<string> {
-    const result = await this.call([
-      "terminal",
-      "create",
-      "--worktree",
-      worktree,
-      "--title",
-      title,
-      "--command",
-      command,
-    ]);
-    const handle = (result.terminal as Json | undefined)?.handle ?? result.handle;
-    if (typeof handle !== "string")
-      throw new OrcaError("unexpected_reply", "terminal create returned no handle");
-    return handle;
   }
 
   async repoId(path: string): Promise<string | undefined> {
@@ -133,128 +84,37 @@ export class Orca {
     ]);
   }
 
-  async runCreate(objective: string, from: string): Promise<string> {
+  // Starts an agent in a new terminal in the worktree and waits until it's ready for a prompt.
+  async startAgent(worktreeId: string, command: string, title: string): Promise<string> {
     const result = await this.call([
-      "orchestration",
-      "run-create",
-      "--objective",
-      objective,
-      "--from",
-      from,
+      "terminal",
+      "create",
+      "--worktree",
+      `id:${worktreeId}`,
+      "--title",
+      title,
+      "--command",
+      command,
     ]);
-    return (result.run as Json).id as string;
-  }
-
-  async runUse(runId: string, from: string): Promise<void> {
-    await this.call(["orchestration", "run-use", "--id", runId, "--from", from]);
-  }
-
-  async workerStart(runId: string, from: string, w: WorkerStart): Promise<string> {
-    const args = [
-      "orchestration",
-      "worker-start",
-      "--run",
-      runId,
-      "--from",
-      from,
-      "--spec",
-      w.spec,
-    ];
-    args.push("--worktree", `id:${w.worktreeId}`);
-    if (w.terminal) args.push("--terminal", w.terminal);
-    else args.push("--agent", w.agent ?? "claude");
-    if (w.title) args.push("--task-title", w.title);
-    const result = await this.call(args);
-    return result.dispatchId as string;
-  }
-
-  async workerShow(dispatchId: string): Promise<WorkerInfo> {
-    const result = await this.call(["orchestration", "worker-show", "--dispatch", dispatchId]);
-    const dispatch = (result.dispatch as Json | undefined) ?? {};
-    const worker = (result.worker as Json | undefined) ?? {};
-    const status = String(dispatch.status ?? worker.state ?? "unknown");
-    const terminal = (worker.agentTerminalHandle ?? dispatch.assigneeHandle) as string | undefined;
-    const worktreeId = worker.worktreeId as string | undefined;
-    return {
-      dispatchId,
-      status,
-      settled: SETTLED.has(status) || worker.stage === "settled",
-      ...(terminal && { terminal }),
-      ...(worktreeId && { worktreeId }),
-    };
-  }
-
-  async send(
-    runId: string,
-    from: string,
-    dispatchId: string,
-    subject: string,
-    body: string,
-  ): Promise<void> {
+    const handle = (result.terminal as Json | undefined)?.handle ?? result.handle;
+    if (typeof handle !== "string") {
+      throw new OrcaError("unexpected_reply", "terminal create returned no handle");
+    }
     await this.call([
-      "orchestration",
-      "send",
-      "--run",
-      runId,
-      "--from",
-      from,
-      "--to",
-      `dispatch:${dispatchId}`,
-      "--subject",
-      subject,
-      "--body",
-      body,
-    ]);
-  }
-
-  // The oldest unacknowledged batch in the Run's inbox, without waiting.
-  async check(
-    runId: string,
-    terminal: string,
-  ): Promise<{ deliveryId: string | null; messages: RunMessage[] }> {
-    const result = await this.call([
-      "orchestration",
-      "check",
-      "--run",
-      runId,
+      "terminal",
+      "wait",
       "--terminal",
-      terminal,
+      handle,
+      "--for",
+      "tui-idle",
+      "--timeout-ms",
+      "120000",
     ]);
-    const messages = ((result.messages as Json[]) ?? []).map((m) => ({
-      id: m.id as string,
-      type: m.type as string,
-      subject: (m.subject as string) ?? "",
-      body: (m.body as string) ?? "",
-      payload:
-        typeof m.payload === "string"
-          ? (JSON.parse(m.payload) as Json)
-          : ((m.payload as Json) ?? {}),
-    }));
-    return { deliveryId: (result.deliveryId as string | null) ?? null, messages };
+    return handle;
   }
 
-  async ack(runId: string, terminal: string, deliveryId: string): Promise<void> {
-    await this.call([
-      "orchestration",
-      "check",
-      "--run",
-      runId,
-      "--terminal",
-      terminal,
-      "--ack",
-      deliveryId,
-    ]);
-  }
-
-  async reply(messageId: string, from: string, body: string): Promise<void> {
-    await this.call(["orchestration", "reply", "--id", messageId, "--from", from, "--body", body]);
-  }
-
-  async retain(dispatchId: string): Promise<void> {
-    await this.call(["orchestration", "worker-retain", "--dispatch", dispatchId]);
-  }
-
-  async release(dispatchId: string): Promise<void> {
-    await this.call(["orchestration", "worker-release", "--dispatch", dispatchId]);
+  // Types a prompt into the agent and presses Enter. A busy agent queues it.
+  async prompt(terminal: string, text: string): Promise<void> {
+    await this.call(["terminal", "send", "--terminal", terminal, "--text", text, "--enter"]);
   }
 }

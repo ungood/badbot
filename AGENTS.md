@@ -5,10 +5,10 @@ badbot is a TypeScript CLI that wakes the Orca agent that owns a pull request wh
 ## Repo paths
 
 - `src/cli.ts`: the commands. Each command is a thin layer over a module.
-- `src/router.ts`: re-reads a PR and turns its signals into Orca actions. Everything that wakes an agent goes through `Router.reconcilePull`.
+- `src/router.ts`: re-reads a PR and prompts the agent in its worktree. Everything that wakes an agent goes through `Router.reconcilePull`.
 - `src/signals.ts`: pure logic that decides what about a PR needs attention. Signal keys make every action happen once.
-- `src/daemon.ts`: the loop that drains the inbox queue and the Run's inbox, and sweeps.
-- `src/orca/cli.ts`: the only module that runs `orca`.
+- `src/daemon.ts`: the loop that drains the inbox queue and sweeps.
+- `src/orca/cli.ts`: the only module that runs `orca`. badbot uses Orca's worktree and terminal commands only, not orchestration.
 - `src/github/`: the App client, PR normalization, webhook mapping, signature checks and App registration. `events.ts`, `signature.ts` and `src/inbox/message.ts` are shared with the Worker, so they use no Node or Workers APIs.
 - `src/identity.ts`: the git config, credential helper and `gh` wrapper that let agents act as the bot.
 - `worker/index.ts`: the Cloudflare Worker, type-checked with `worker/tsconfig.json`.

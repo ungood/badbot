@@ -49,16 +49,7 @@ async function setup(): Promise<{ config: Config; store: Store; github: GitHub; 
   const store = await Store.open();
   const github = await app(config);
   const bot = await github.bot();
-  const coordinatorCommand = `"${process.execPath}" "${cli}" logs --follow`;
-  const router = new Router(
-    config,
-    store,
-    github,
-    new Orca(config.orcaBin),
-    log,
-    coordinatorCommand,
-    bot.login,
-  );
+  const router = new Router(config, store, github, new Orca(config.orcaBin), log, bot.login);
   return { config, store, github, router };
 }
 

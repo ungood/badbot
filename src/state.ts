@@ -5,11 +5,9 @@ import { join } from "node:path";
 import { stateDir } from "./paths.js";
 
 export interface Owner {
-  dispatchId: string;
   worktreeId: string;
-  // The router started this agent, rather than adopting one already in the
-  // worktree, so it may close the agent's terminal when the PR closes.
-  startedAgent: boolean;
+  // The agent terminal badbot last prompted, reused while it's open.
+  terminal: string;
 }
 
 export interface PullMemory {
@@ -23,7 +21,6 @@ export interface State {
   version: 1;
   // Feedback older than this predates the router and is never acted on.
   startedAt: string;
-  orca: { runId?: string; coordinator?: string };
   inbox: { url?: string };
   pulls: Record<string, PullMemory>;
   seenDeliveries: string[];
@@ -38,7 +35,6 @@ export function emptyState(now = new Date()): State {
   return {
     version: 1,
     startedAt: now.toISOString(),
-    orca: {},
     inbox: {},
     pulls: {},
     seenDeliveries: [],

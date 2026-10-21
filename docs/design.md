@@ -1,6 +1,6 @@
 # Design
 
-badbot turns events on GitHub into Orca orchestration actions, so that the agent that owns a pull request wakes up when the PR needs it. The first milestone covers GitHub pull requests. Linear and Slack come later, through the same inbox and daemon.
+badbot turns events on GitHub into prompts for the Orca agent that works on a pull request, so that agent wakes up when the PR needs it. The first milestone covers GitHub pull requests. Linear and Slack come later, through the same inbox and daemon.
 
 The milestone is done when a review comment, a CI failure and a base branch moving on a factory PR each wake the agent that owns that PR, including after the laptop has slept through the event.
 
@@ -10,7 +10,7 @@ Events are hints. The daemon never acts on a webhook's payload: it re-reads the 
 
 Every action happens once. Each signal carries keys, such as `ci:<head sha>` or `behind:<head sha>:<base sha>`, and the daemon records the keys it has acted on per PR. An event and a sweep that see the same state do nothing the second time.
 
-badbot only orchestrates. It wakes agents and tells them what changed. The agents decide what to do, and they commit, push and reply themselves.
+badbot only routes. It hands a PR's news to the agent in the PR's worktree and tells it what changed. The agent decides what to do, and commits, pushes and replies itself. badbot doesn't supervise agents or wait for them to report back: it judges progress by what it can see on GitHub, such as the head moving or CI running again.
 
 ## Components
 
@@ -30,7 +30,7 @@ Deliveries map to entities like this. Review, comment and PR events name a PR. `
 
 ### The daemon
 
-The daemon runs under launchd. Every 30 seconds it drains the queue and the Run's inbox (below). On wake, which it detects as a gap of more than three poll intervals, and every five minutes, it also sweeps: it lists every open PR in every watched repo, reconciles each one, and asks GitHub to redeliver App webhook deliveries from the last three days that never succeeded. The sweep is what catches a PR becoming conflicted or falling behind, since GitHub sends no event for either.
+The daemon runs under launchd. Every 30 seconds it drains the queue. On wake, which it detects as a gap of more than three poll intervals, and every five minutes, it also sweeps: it lists every open PR in every watched repo, reconciles each one, and asks GitHub to redeliver App webhook deliveries from the last three days that never succeeded. The sweep is what catches a PR becoming conflicted or falling behind, since GitHub sends no event for either.
 
 A queue message is acknowledged only after the daemon has acted on it. If acting fails, for example because Orca isn't running, the message is retried a minute later.
 
@@ -49,15 +49,13 @@ Each workplace's `badbot.toml` can change what a signal does. A route has a prom
 
 ### Ownership
 
-Orca only lets a live terminal coordinate a Run, so the daemon keeps one Orca terminal of its own, titled `badbot`, which shows its log. It creates the Run once and rebinds it to a new terminal if the old one is closed.
+Each PR is worked on in one Orca worktree by one agent, and badbot remembers both. badbot uses only Orca's worktree and terminal commands, not its orchestration layer, so there's no Run or coordinator to keep alive. When a PR has news:
 
-Each PR has at most one owning Dispatch. When a PR has news:
+1. If the agent terminal badbot last prompted for the PR is still open, badbot types the news into it with `orca terminal send`. A busy agent reads it as steering in the middle of its turn; an idle one starts a new turn. Either way the same session continues with its context.
+2. Otherwise badbot finds the PR's worktree: the one it used before, or any worktree on the PR's branch. If there's an agent open there, such as a session you started, badbot prompts it. If not, badbot starts one with the workplace's `agent_command`, waits for Orca to report it idle, and prompts it.
+3. If the PR has no worktree, badbot creates one with `orca worktree create --pr` and starts an agent in it. The prompt tells the agent to check out the PR's branch if the new worktree isn't on it.
 
-1. If its owner is still working, badbot sends it a message (`orchestration send --to dispatch:<id>`) instead of starting another agent.
-2. If its owner has settled and its terminal is still open, badbot starts a new Dispatch in that terminal, so the same agent session continues with its context.
-3. Otherwise badbot adopts the agent already open in the PR's worktree, or starts one there, or creates a worktree for the PR and starts one in it.
-
-When an owner sends `worker_done`, badbot retains its terminal for the PR's next event. When the PR merges or closes, badbot releases the terminal if it started the agent itself. A question from a worker gets a reply telling it to make a safe, reversible choice or to stop and explain itself in its terminal, since there's nobody on the other end.
+When a PR merges or closes, badbot stops watching it and leaves the worktree and terminal for you to archive.
 
 ## Agent identity
 
@@ -82,6 +80,7 @@ The App only has the permissions granted where it's installed, never yours. A pr
 ## Open questions
 
 - Whether Claude Code Channels is a better way than Orca's terminal input to wake an agent.
+- Whether to use Orca's orchestration (Runs and Dispatches) later, for example to have agents report back. It needs a live terminal to coordinate from, which is why badbot doesn't use it now.
 - What to contribute to Orca instead: webhook triggers ([stablyai/orca#5617](https://github.com/stablyai/orca/pull/5617)) and keeping merge-required work active ([stablyai/orca#21984](https://github.com/stablyai/orca/issues/21984)).
-- What adopting an interactive session should do while you're typing in it. Orca queues the input, but the result hasn't been tested.
+- What happens when badbot prompts a session you're typing in. Orca sends the text, but it could interleave with your input.
 - Whether the sweep's GraphQL query needs to be cheaper for repos with many open PRs.

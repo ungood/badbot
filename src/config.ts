@@ -29,7 +29,9 @@ export interface RepoConfig {
 
 export interface Workplace {
   path: string;
+  // Orca's name for the agent (as in `orca terminal list`), and the command that starts it.
   agent: string;
+  agentCommand: string;
   // GitHub logins of the people whose reviews and comments count.
   allow: string[];
   routes: Record<SignalKind, Route>;
@@ -142,6 +144,7 @@ export function parseWorkplace(path: string, text: string): Workplace {
   const workplace: Workplace = {
     path,
     agent: str(raw.agent, `${where}: agent`) ?? "claude",
+    agentCommand: str(raw.agent_command, `${where}: agent_command`) ?? "claude",
     allow: strings(raw.allow, `${where}: allow`) ?? [],
     routes,
     repos: [],

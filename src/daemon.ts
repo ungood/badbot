@@ -1,6 +1,6 @@
-// The daemon's loop. Every poll it drains the inbox queue and the Run's
-// inbox. On wake from sleep, and every sweep interval, it also reconciles
-// every PR from GitHub's API and asks GitHub to redeliver failed webhooks.
+// The daemon's loop. Every poll it drains the inbox queue. On wake from
+// sleep, and every sweep interval, it also reconciles every PR from GitHub's
+// API and asks GitHub to redeliver failed webhooks.
 
 import { allRepos, findRepo, type Config } from "./config.js";
 import { failedDeliveries, type GitHub } from "./github/client.js";
@@ -34,7 +34,6 @@ export class Daemon {
     if (woke) this.log("woke from sleep; sweeping");
 
     await this.step("inbox", () => this.drainQueue());
-    await this.step("run inbox", () => this.router.drainRunInbox());
     if (forceSweep || woke || now - this.lastSweep >= this.config.sweepSeconds * 1000) {
       this.lastSweep = now;
       await this.step("sweep", () => this.router.sweep());

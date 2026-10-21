@@ -21,7 +21,6 @@ function setup(batches: Leased[][], fail = new Set<number>()) {
     async reconcileBranch(_r: unknown, b: string) {
       reconciled.push(`branch ${b}`);
     },
-    async drainRunInbox() {},
     async sweep() {
       sweeps++;
     },

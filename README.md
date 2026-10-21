@@ -7,8 +7,8 @@ badbot is a GitHub App. Its bot, `ungood[bot]`, is also the identity the agents 
 ## How it works
 
 - **Inbox:** a Cloudflare Worker verifies each GitHub delivery and queues a reference to the PR or branch it touches.
-- **Daemon:** runs under launchd. It drains the queue, re-reads each PR from GitHub, and acts through Orca orchestration. It also sweeps every open PR on wake and every five minutes, and asks GitHub to redeliver webhooks that failed.
-- **Owner:** each PR has one agent. A busy owner gets a message. A finished one is resumed in the same terminal, so it keeps its context. A PR nobody owns is handed to the agent already in its worktree, or to a new agent in a new worktree.
+- **Daemon:** runs under launchd. It drains the queue, re-reads each PR from GitHub, and prompts the agent working on the PR. It also sweeps every open PR on wake and every five minutes, and asks GitHub to redeliver webhooks that failed.
+- **Owner:** each PR has one worktree and one agent. badbot types the news into that agent's terminal, so it keeps its context. A PR with no agent gets one in its worktree, and a PR with no worktree gets a new one.
 
 See [the design](docs/design.md) for the details.
 
@@ -32,6 +32,8 @@ badbot needs Orca, mise, gh, fnox (or another way to fetch secrets), and a Cloud
    ```toml
    # The people whose reviews and comments count.
    allow = ["ungood"]
+   # How to start an agent in a PR's worktree (default: claude).
+   agent_command = "claude"
 
    [repos."ungood/factory"]
    path = "."
@@ -46,7 +48,7 @@ badbot needs Orca, mise, gh, fnox (or another way to fetch secrets), and a Cloud
 
 4. Register the App: `badbot app create`. GitHub asks you to confirm, then badbot stores the private key and webhook secret with `fnox set` (run in `~/.config/badbot`, so put a `fnox.toml` there), adds `app_id` to `config.toml`, and opens the page to install the App on your account.
 5. Deploy the inbox: `badbot inbox install`. Run `badbot inbox update` after upgrading badbot.
-6. Start the daemon: `badbot service install`. Watch it with `badbot logs -f`, or in the `badbot` terminal it opens in Orca.
+6. Start the daemon: `badbot service install`. Watch it with `badbot logs -f`.
 7. Let agents act as the bot: `badbot identity install`, then merge the settings it prints into the `settings.json` of the Claude config your agents use.
 
 ## Commands
